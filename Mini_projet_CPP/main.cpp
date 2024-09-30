@@ -8,11 +8,11 @@
 using namespace std;
 
 // Constantes de la carte
-const int MAP_WIDTH = 30;
-const int MAP_HEIGHT = 30;
-const char EMPTY = '.';
+const int MAP_WIDTH = 20;
+const int MAP_HEIGHT = 20;
+const char EMPTY = '.';    // Vide
 const char OBSTACLE = '#'; // Mur
-const char ROBOT = 'R';
+const char ROBOT = 'R';    // Robot
 
 // Classe pour la carte
 class Map {
@@ -126,6 +126,15 @@ void Robot::moveAutomatically(Map& map, int targetX, int targetY) {
         map.setCell(x, y, ROBOT);  // Place le robot a la nouvelle position
         map.printMap();  // Mise a jour de l'affichage
         Sleep(500);  // Pause pour ralentir l'animation du mouvement (500 ms)
+
+        // Vérifie si la touche 'p' est pressée pour quitter
+        if (_kbhit()) {
+            char key = _getch();
+            if (key == 'p') {
+                cout << "Jeu termine. Merci d'avoir joue !" << endl;
+                exit(0); // Quitte le programme
+            }
+        }
     }
 
     if (x == targetX && y == targetY) {
@@ -135,49 +144,67 @@ void Robot::moveAutomatically(Map& map, int targetX, int targetY) {
 
 // Fonction principale
 int main() {
-    Map map;
-    Robot robot(0, 0);
+    while (true) { // Boucle pour recommencer une partie
+        Map map;
+        Robot robot(0, 0);
 
-    // Generation de la carte avec densite d'obstacles definie par l'utilisateur
-    cout << "Choisissez la densite des obstacles (0-100) : ";
-    int density;
-    cin >> density;
-    map.generateMap(density);
+        // Generation de la carte avec densite d'obstacles definie par l'utilisateur
+        cout << "Choisissez la densite des obstacles (0-100) : ";
+        int density;
+        cin >> density;
+        map.generateMap(density);
 
-    // Placement initial du robot
-    map.setCell(0, 0, ROBOT);
-    map.printMap();
+        // Placement initial du robot
+        map.setCell(0, 0, ROBOT);
+        map.printMap();
 
-    // Choix du mode de deplacement
-    cout << "Choisissez le mode de deplacement : 1 = manuel, 2 = automatique : ";
-    int mode;
-    cin >> mode;
+        // Indication pour quitter le jeu
+        cout << "Appuyez sur 'p' a tout moment pour quitter le jeu." << endl;
 
-    if (mode == 1) {
-        // Mode manuel avec capture des touches ZQSD
-        while (true) {
-            if (_kbhit()) {  // Verifie si une touche a ete pressee
-                char direction = _getch();  // Recupere la touche pressee
-                robot.moveManually(map, direction);  // Deplace le robot
+        // Choix du mode de deplacement
+        cout << "Choisissez le mode de deplacement : 1 = manuel, 2 = automatique : ";
+        int mode;
+        cin >> mode;
+
+        if (mode == 1) {
+            // Mode manuel avec capture des touches ZQSD
+            while (true) {
+                if (_kbhit()) {  // Verifie si une touche a ete pressee
+                    char direction = _getch();  // Recupere la touche pressee
+                    if (direction == 'p') { // Vérifie si la touche 'p' est pressée pour quitter
+                        cout << "Jeu termine. Merci d'avoir joue !" << endl;
+                        exit(0); // Quitte le programme
+                    }
+                    robot.moveManually(map, direction);  // Deplace le robot
+                }
             }
         }
-    }
-    else if (mode == 2) {
-        // Mode automatique vers des coordonnees donnees
-        int targetX, targetY;
-        cout << "Entrez les coordonnees cibles (x y) : ";
-        cin >> targetX >> targetY;
+        else if (mode == 2) {
+            // Mode automatique vers des coordonnees donnees
+            int targetX, targetY;
+            cout << "Entrez les coordonnees cibles (x y) : ";
+            cin >> targetX >> targetY;
 
-        // Verifie si la cible est valide
-        if (targetX < 0 || targetX >= MAP_WIDTH || targetY < 0 || targetY >= MAP_HEIGHT) {
-            cout << "Coordonnees invalides. Terminaison du programme." << endl;
+            // Verifie si la cible est valide
+            if (targetX < 0 || targetX >= MAP_WIDTH || targetY < 0 || targetY >= MAP_HEIGHT) {
+                cout << "Coordonnees invalides. Fin du programme." << endl;
+            }
+            else {
+                robot.moveAutomatically(map, targetX, targetY);  // Deplacement automatique
+            }
         }
         else {
-            robot.moveAutomatically(map, targetX, targetY);  // Deplacement automatique
+            cout << "Mode invalide." << endl;
         }
-    }
-    else {
-        cout << "Mode invalide." << endl;
+
+        // Fin de la partie
+        cout << "Voulez-vous recommencer une partie ? (o/n) : ";
+        char playAgain;
+        cin >> playAgain;
+        if (playAgain != 'o') {
+            cout << "Jeu termine. Merci d'avoir joue !" << endl;
+            break; // Quitte la boucle pour terminer le programme
+        }
     }
 
     return 0;
