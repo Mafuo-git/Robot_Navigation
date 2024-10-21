@@ -2,210 +2,200 @@
 #include <vector>
 #include <cstdlib>
 #include <ctime>
-#include <conio.h>  // Pour utiliser _kbhit() et _getch() sur Windows
-#include <windows.h>  // Pour utiliser Sleep()
+#include <conio.h>
 
 using namespace std;
 
-// Constantes de la carte
-const int MAP_WIDTH = 20;
-const int MAP_HEIGHT = 20;
-const char EMPTY = '.';    // Vide
-const char OBSTACLE = '#'; // Mur
-const char ROBOT = 'R';    // Robot
+const char EMPTY = '.';
+const char OBSTACLE = 'X';
+const char ROBOT = 'R';       // Définition des différents éléments de la grille
+const char GOAL = 'W';
+const char BONUS = 'B';
 
-// Classe pour la carte
-class Map {
-public:
-    Map();
-    void generateMap(int obstacleDensity);
-    void printMap() const;
-    char getCell(int x, int y) const;
-    void setCell(int x, int y, char value);
-
-private:
-    vector<vector<char>> grid;
-};
-
-// Classe pour le robot
-class Robot {
-public:
-    Robot(int startX, int startY);
-    void moveManually(Map& map, char direction);
-    void moveAutomatically(Map& map, int targetX, int targetY);
-
-private:
+struct Position {  // Structure de données pour stocker les coordonnées d'une cellule
     int x, y;
 };
 
-// Constructeur de la carte
-Map::Map() : grid(MAP_HEIGHT, vector<char>(MAP_WIDTH, EMPTY)) {}
-
-// Generation de la carte avec obstacles aleatoires
-void Map::generateMap(int obstacleDensity) {
-    srand(time(0));
-    for (int y = 0; y < MAP_HEIGHT; y++) {
-        for (int x = 0; x < MAP_WIDTH; x++) {
-            grid[y][x] = (rand() % 100 < obstacleDensity) ? OBSTACLE : EMPTY;
-        }
-    }
-}
-
-// Affichage de la carte
-void Map::printMap() const {
-    system("cls");  // Efface l'affichage console pour une mise a jour propre
-    for (const auto& row : grid) {
-        for (const auto& cell : row) {
-            cout << cell << " ";
-        }
-        cout << endl;
-    }
-}
-
-// Recuperation du contenu d'une cellule de la carte
-char Map::getCell(int x, int y) const {
-    return grid[y][x];
-}
-
-// Modification du contenu d'une cellule de la carte
-void Map::setCell(int x, int y, char value) {
-    grid[y][x] = value;
-}
-
-// Constructeur du robot
-Robot::Robot(int startX, int startY) : x(startX), y(startY) {}
-
-// Mouvement manuel du robot avec ZQSD
-void Robot::moveManually(Map& map, char direction) {
-    map.setCell(x, y, EMPTY);  // Efface l'ancienne position du robot
-
-    switch (direction) {
-    case 'z': // Haut
-        if (y > 0 && map.getCell(x, y - 1) != OBSTACLE) y--;
-        break;
-    case 's': // Bas
-        if (y < MAP_HEIGHT - 1 && map.getCell(x, y + 1) != OBSTACLE) y++;
-        break;
-    case 'q': // Gauche
-        if (x > 0 && map.getCell(x - 1, y) != OBSTACLE) x--;
-        break;
-    case 'd': // Droite
-        if (x < MAP_WIDTH - 1 && map.getCell(x + 1, y) != OBSTACLE) x++;
-        break;
-    default:
-        break;
+class Game {  // Classe principale du jeu
+public:
+    Game(int width, int height, int obstacleDensity, int bonusDensity)  // Constructeur de la classe
+        : width(width), height(height), score(0) {
+        srand(time(0));
+        grid.resize(height, vector<char>(width, EMPTY));
+        placeObstacles(obstacleDensity);
+        placeBonuses(bonusDensity);
+        placeRobot();
+        placeGoal();
     }
 
-    map.setCell(x, y, ROBOT);  // Place le robot a la nouvelle position
-    map.printMap();  // Mise a jour de l'affichage
-}
-
-// Mouvement automatique vers une cible specifique
-void Robot::moveAutomatically(Map& map, int targetX, int targetY) {
-    while (x != targetX || y != targetY) {
-        map.setCell(x, y, EMPTY);  // Efface l'ancienne position du robot
-
-        // Deplacement optimisé vers la cible
-        if (x < targetX && map.getCell(x + 1, y) != OBSTACLE) {
-            x++;  // Se déplace vers la droite
+    void play() {  // Méthode pour démarrer le jeu
+        char mode;
+        cout << "Choisissez le mode: (m)anuel ou (a)utomatique: ";
+        cin >> mode;
+        if (mode == 'm') {
+            playManual();
         }
-        else if (x > targetX && map.getCell(x - 1, y) != OBSTACLE) {
-            x--;  // Se déplace vers la gauche
-        }
-        else if (y < targetY && map.getCell(x, y + 1) != OBSTACLE) {
-            y++;  // Se déplace vers le bas
-        }
-        else if (y > targetY && map.getCell(x, y - 1) != OBSTACLE) {
-            y--;  // Se déplace vers le haut
+        else if (mode == 'a') {
+            playAutomatic();
         }
         else {
-            cout << "Un obstacle bloque le chemin !" << endl;
-            break;
+            cout << "Mode invalide" << endl;
         }
+    }
 
-        map.setCell(x, y, ROBOT);  // Place le robot a la nouvelle position
-        map.printMap();  // Mise a jour de l'affichage
-        Sleep(500);  // Pause pour ralentir l'animation du mouvement (500 ms)
+private:
+    int width, height, score;  // Largeur, hauteur et score du jeu
+    vector<vector<char>> grid;  // Grille de jeu
+    Position robotPos, goalPos;  // Position du robot et du point d'arrivée
 
-        // Vérifie si la touche 'p' est pressée pour quitter
-        if (_kbhit()) {
-            char key = _getch();
-            if (key == 'p') {
-                cout << "Jeu termine. Merci d'avoir joue !" << endl;
-                exit(0); // Quitte le programme
+    void placeObstacles(int density) { // Densité des obstacles en %
+        int totalCells = width * height;
+        int obstacles = totalCells * density / 100;
+        while (obstacles > 0) {
+            int x = rand() % width;
+            int y = rand() % height;
+            if (grid[y][x] == EMPTY) {
+                grid[y][x] = OBSTACLE;
+                obstacles--;
             }
         }
     }
 
-    if (x == targetX && y == targetY) {
-        cout << "Le robot a atteint sa destination !" << endl;
+    void placeBonuses(int density) { // Densité des bonus en %
+        int totalCells = width * height;
+        int bonuses = totalCells * density / 100;
+        while (bonuses > 0) {
+            int x = rand() % width;
+            int y = rand() % height;
+            if (grid[y][x] == EMPTY) {
+                grid[y][x] = BONUS;
+                bonuses--;
+            }
+        }
     }
-}
 
-// Fonction principale
-int main() {
-    while (true) { // Boucle pour recommencer une partie
-        Map map;
-        Robot robot(0, 0);
+    void placeRobot() { // Positionnement aléatoire du robot sur la grille
+        while (true) {
+            int x = rand() % width;
+            int y = rand() % height;
+            if (grid[y][x] == EMPTY) {
+                grid[y][x] = ROBOT;
+                robotPos = { x, y };
+                break;
+            }
+        }
+    }
 
-        // Generation de la carte avec densite d'obstacles definie par l'utilisateur
-        cout << "Choisissez la densite des obstacles (0-100) : ";
-        int density;
-        cin >> density;
-        map.generateMap(density);
+    void placeGoal() {  // Positionnement aléatoire du point d'arrivée sur la grille
+        while (true) {
+            int x = rand() % width;
+            int y = rand() % height;
+            if (grid[y][x] == EMPTY) {
+                grid[y][x] = GOAL;
+                goalPos = { x, y };
+                break;
+            }
+        }
+    }
 
-        // Placement initial du robot
-        map.setCell(0, 0, ROBOT);
-        map.printMap();
+    void displayGrid() {  // Affichage de la grille
+        system("cls");
+        for (const auto& row : grid) {
+            for (char cell : row) {
+                cout << cell << ' ';
+            }
+            cout << endl;
+        }
+        cout << "Score: " << score << endl;
+    }
 
-        // Indication pour quitter le jeu
-        cout << "Appuyez sur 'p' a tout moment pour quitter le jeu." << endl;
+    void playManual() {  // Mode de jeu manuel
+        displayGrid();
+        while (true) {
+            char move = _getch();
+            Position newPos = robotPos;
+            if (move == 'z') newPos.y--;        // z: haut, s: bas, q: gauche, d: droite
+            else if (move == 's') newPos.y++;
+            else if (move == 'q') newPos.x--;
+            else if (move == 'd') newPos.x++;
+            else continue;
 
-        // Choix du mode de deplacement
-        cout << "Choisissez le mode de deplacement : 1 = manuel, 2 = automatique : ";
-        int mode;
-        cin >> mode;
-
-        if (mode == 1) {
-            // Mode manuel avec capture des touches ZQSD
-            while (true) {
-                if (_kbhit()) {  // Verifie si une touche a ete pressee
-                    char direction = _getch();  // Recupere la touche pressee
-                    if (direction == 'p') { // Vérifie si la touche 'p' est pressée pour quitter
-                        cout << "Jeu termine. Merci d'avoir joue !" << endl;
-                        exit(0); // Quitte le programme
-                    }
-                    robot.moveManually(map, direction);  // Deplace le robot
+            if (isValidMove(newPos)) {  // Vérification de la validité du mouvement
+                moveRobot(newPos);
+                displayGrid();
+                if (robotPos.x == goalPos.x && robotPos.y == goalPos.y) {
+                    cout << "Vous avez atteint le point d'arrivée ! Score final : " << score << endl;
+                    break;
                 }
             }
         }
-        else if (mode == 2) {
-            // Mode automatique vers des coordonnees donnees
-            int targetX, targetY;
-            cout << "Entrez les coordonnees cibles (x y) : ";
-            cin >> targetX >> targetY;
+    }
 
-            // Verifie si la cible est valide
-            if (targetX < 0 || targetX >= MAP_WIDTH || targetY < 0 || targetY >= MAP_HEIGHT) {
-                cout << "Coordonnees invalides. Fin du programme." << endl;
-            }
-            else {
-                robot.moveAutomatically(map, targetX, targetY);  // Deplacement automatique
-            }
-        }
-        else {
-            cout << "Mode invalide." << endl;
-        }
+    void playAutomatic() {
+        priority_queue<Node*, vector<Node*>, CompareNode> openList;  // Liste ouverte
+        unordered_set<Position> closedList;                          // Liste fermée
+        Node* startNode = new Node(robotPos, 0, heuristic(robotPos, goalPos));  // Création du noeud de départ
+        openList.push(startNode);                                   // Ajout du noeud de départ à la liste ouverte
 
-        // Fin de la partie
-        cout << "Voulez-vous recommencer une partie ? (o/n) : ";
-        char playAgain;
-        cin >> playAgain;
-        if (playAgain != 'o') {
-            cout << "Jeu termine. Merci d'avoir joue !" << endl;
-            break; // Quitte la boucle pour terminer le programme
+        while (!openList.empty()) {                     // Tant que la liste ouverte n'est pas vide
+            Node* currentNode = openList.top();         // Récupère le noeud avec le coût le plus faible
+            openList.pop();                             // Supprime le noeud de la liste ouverte
+
+            if (currentNode->pos == goalPos) {          // Vérifie si le robot a atteint le point d'arrivée
+                reconstructPath(currentNode);           // Reconstitue le chemin
+                cout << "Le robot a atteint le point d'arrivee ! Score final : " << score << endl;   // Affiche le score final
+                return;
+            }
+
+            closedList.insert(currentNode->pos);        // Ajoute le noeud courant à la liste fermée
+
+            for (const auto& neighbor : getNeighbors(currentNode->pos)) {    // Parcours des voisins du noeud courant
+                if (closedList.find(neighbor) != closedList.end()) continue;  // Vérifie si le voisin est dans la liste fermée
+
+                int tentativeG = currentNode->g + 1;        // Coût du chemin actuel
+                Node* neighborNode = new Node(neighbor, tentativeG, heuristic(neighbor, goalPos), currentNode);   // Crée un nouveau noeud
+
+                openList.push(neighborNode);      // Ajoute le voisin à la liste ouverte
+            }
+
         }
     }
+
+    bool isValidMove(Position pos) {   // Vérifie si le mouvement est valide
+        return pos.x >= 0 && pos.x < width && pos.y >= 0 && pos.y < height && grid[pos.y][pos.x] != OBSTACLE;
+    }
+
+    void moveRobot(Position newPos) {   // Déplace le robot vers la nouvelle position
+        if (grid[newPos.y][newPos.x] == BONUS) {   // Vérifie si le robot a atteint un bonus
+            score += 10;
+        }
+        grid[robotPos.y][robotPos.x] = EMPTY;    // Met à jour la grille
+        robotPos = newPos;                       // Met à jour la position du robot
+        grid[robotPos.y][robotPos.x] = ROBOT;    // Met à jour la grille
+    }
+};
+
+
+
+int main() {          // Fonction principale
+    char playAgain;
+    do {
+        int width, height, obstacleDensity, bonusDensity;
+        cout << "Indiquez la largeur du plateau de jeu: ";    // Saisie de la largeur
+        cin >> width;
+        cout << "Indiquez la hauteur du plateau de jeu: ";  // Saisie de la hauteur
+        cin >> height;
+        cout << "Indiquez la densite d'obstacle (%): ";  // Saisie de la densité des obstacles
+        cin >> obstacleDensity;
+        cout << "Indiquez la densite de bonus (%): ";   // Saisie de la densité des bonus
+        cin >> bonusDensity;
+
+        Game game(width, height, obstacleDensity, bonusDensity);  // Création d'une instance de la classe Game
+        game.play();  // Démarrage du jeu
+
+        cout << "Voulez-vous rejouer ? (o/n): ";
+        cin >> playAgain;
+    } while (playAgain == 'o' || playAgain == 'O');
 
     return 0;
 }
