@@ -1,4 +1,6 @@
-﻿#include <iostream>
+﻿/*   Mini projet Navigation Robot - Matheo Merlin   */
+
+#include <iostream>
 #include <vector>
 #include <cstdlib>
 #include <ctime>
